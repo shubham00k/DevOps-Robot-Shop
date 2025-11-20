@@ -1,0 +1,182 @@
+version: "3.9"
+
+services:
+  # ------------------- Databases -------------------
+  mongo:
+    build: ./mongo
+
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - robot-net
+
+  mysql:
+   build: ./mysql
+   container_name: mysql
+   environment:
+     username: shipping
+     password: shipping
+     host: mysql
+     database: cities
+     port: 3306
+
+   volumes:
+     - ./mysql/scripts:/docker-entrypoint-initdb.d
+
+   ports:
+    - "3306:3306"
+   networks:
+      - robot-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - robot-net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - robot-net
+
+  # ------------------- Application Microservices -------------------
+  cart:
+    image: shubham003/robo-cart:v1
+    container_name: cart
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    ports:
+      - "8081:8080"
+    networks:
+      - robot-net
+
+  catalogue:
+    image: shubham003/robo-catalogue:v1
+    container_name: catalogue
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/catalogue
+
+    depends_on:
+      - mongo
+    ports:
+      - "8082:8080"
+    networks:
+      - robot-net
+
+  user:
+    image: shubham003/robo-user:v1
+    container_name: user
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/catalogue
+    depends_on:
+      - mongo
+    ports:
+      - "8083:8080"
+    networks:
+      - robot-net
+
+  ratings:
+    image: shubham003/robo-ratings:v1
+    container_name: ratings
+    environment:
+      - MONGO_HOST=mongo
+      - MONGO_PORT=27017
+    depends_on:
+      - mongo
+    ports:
+      - "8084:8080"
+    networks:
+      - robot-net
+
+  payment:
+    image: robotshop/rs-payment
+    container_name: payment
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    depends_on:
+      - rabbitmq
+    ports:
+      - "8085:8080"
+    networks:
+      - robot-net
+
+  dispatch:
+    image: shubham003/robo-dispatch:latest
+    container_name: dispatch
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    depends_on:
+      - rabbitmq
+    networks:
+      - robot-net
+
+  shipping:
+    image: shubham003/robo-shipping:v1
+    container_name: shipping
+    environment:
+      - CART_ENDPOINT=cart:8080
+      - DB_HOST=mysql
+    depends_on:
+      - mysql
+      - cart
+    ports:
+      - "8086:8080"
+    networks:
+      - robot-net
+
+  web:
+    image: shubham003/robo-web:v1
+    container_name: web
+    environment:
+      - CATALOGUE_HOST=catalogue
+      - USER_HOST=user
+      - CART_HOST=cart
+      - SHIPPING_HOST=shipping
+      - PAYMENT_HOST=payment
+      - RATINGS_HOST=ratings
+    depends_on:
+      - cart
+      - catalogue
+      - user
+      - shipping
+      - payment
+      - ratings
+    ports:
+      - "8080:8080"
+    networks:
+      - robot-net
+
+  # ------------------- Logging -------------------
+  fluentd:
+    image: fluent/fluentd:v1.16-debian
+    container_name: fluentd
+    ports:
+      - "24224:24224"
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    networks:
+      - robot-net
+
+# ------------------- Networks & Volumes -------------------
+networks:
+  robot-net:
+
+volumes:
+  mongo_data:
+  mysql_data:
+
+  

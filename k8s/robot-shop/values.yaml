@@ -1,0 +1,158 @@
+# -------------------------------
+# Global settings
+# -------------------------------
+namespace: robot-shop
+
+imagePullPolicy: IfNotPresent
+
+
+# -------------------------------
+# Web frontend (LoadBalancer)
+# -------------------------------
+web:
+  name: web
+  image:
+    repository: shubhamkapse003/robo-web
+    tag: v1
+  port: 8080
+  service:
+    type: LoadBalancer
+    port: 80
+
+# -------------------------------
+# NodeJS microservices
+# (cart, catalogue, user)
+# -------------------------------
+cart:
+  name: cart
+  image:
+    repository: shubhamkapse003/robo-cart
+    tag: v1
+  port: 8080
+  env: []
+
+catalogue:
+  name: catalogue
+  image:
+    repository: shubhamkapse003/robo-catalogue
+    tag: v1
+  port: 8082
+  env:
+    - name: MONGO_URL
+      value: "mongodb://mongo:27017/catalogue"
+
+user:
+  name: user
+  image:
+    repository: shubhamkapse003/robo-user
+    tag: v1
+  port: 8080
+  env:
+    - name: MONGO_URL
+      value: "mongodb://mongo:27017/user"
+
+
+# -------------------------------
+# Java Shipping service
+# -------------------------------
+shipping:
+  name: shipping
+  image:
+    repository: shubhamkapse003/robo-shipping
+    tag: v1
+  port: 8080
+  env:
+    - name: CART_ENDPOINT
+      value: "cart:8080"
+    - name: DB_HOST
+      value: "mysql"
+    - name: DB_USER
+      value: "shipping"
+    - name: DB_PASSWORD
+      value: "shipping"
+    - name: DB_NAME
+      value: "cities"
+
+
+# -------------------------------
+# Python/Go/Other microservices
+# -------------------------------
+payment:
+  name: payment
+  image:
+    repository: shubhamkapse003/robo-payment
+    tag: v1
+  port: 8080
+  env: []
+
+ratings:
+  name: ratings
+  image:
+    repository: shubhamkapse003/robo-ratings
+    tag: v1
+  port: 80
+  env: []
+
+dispatch:
+  name: dispatch
+  image:
+    repository: shubhamkapse003/robo-dispatch
+    tag: v1
+  port: 8080
+  env: []
+
+
+# -------------------------------
+# MongoDB (StatefulSet)
+# -------------------------------
+mongo:
+  name: mongo
+  image: shubhamkapse003/robo-mongo:v1
+  port: 27017
+
+  pvc:
+    size: 1Gi
+
+  initFiles:
+    - catalogue.js
+    - users.js
+
+
+# -------------------------------
+# MySQL (StatefulSet)
+# -------------------------------
+mysql:
+  name: mysql
+  image: shubhamkapse003/robo-mysql:v1
+  port: 3306
+
+  rootPassword: admin
+  user: shipping
+  password: shipping
+  database: cities
+
+  pvc:
+    size: 1Gi
+
+  initFiles:
+    - 10-dump.sql.gz
+    - 15-shipping.sql
+    - 20-ratings.sql
+
+
+# -------------------------------
+# Load Generator
+# -------------------------------
+loadgen:
+  enabled: true
+  image:
+    repository: shubhamkapse003/robo-load-gen
+    tag: v1
+  replicaCount: 1
+
+
+# Global settings
+global:
+  registry: docker.io
+  pullPolicy: Always
+

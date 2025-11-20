@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping
+  labels:
+    app: shipping
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.shipping.port }}
+      targetPort: {{ .Values.shipping.port }}
+      protocol: TCP

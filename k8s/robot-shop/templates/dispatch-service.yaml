@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dispatch
+  labels:
+    app: dispatch
+spec:
+  type: ClusterIP
+  selector:
+    app: dispatch
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

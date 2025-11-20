@@ -1,0 +1,425 @@
+name: Robot Shop CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'cart/**'
+      - 'catalogue/**'
+      - 'dispatch/**'
+      - 'payment/**'
+      - 'ratings/**'
+      - 'shipping/**'
+      - 'user/**'
+      - 'web/**'
+      - 'k8s/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOCKER_USERNAME: ${{ secrets.REGISTERY_USERNAME }}
+  DOCKER_REGISTRY: docker.io
+
+jobs:
+  # Detect which services changed
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      cart: ${{ steps.filter.outputs.cart }}
+      catalogue: ${{ steps.filter.outputs.catalogue }}
+      dispatch: ${{ steps.filter.outputs.dispatch }}
+      payment: ${{ steps.filter.outputs.payment }}
+      ratings: ${{ steps.filter.outputs.ratings }}
+      shipping: ${{ steps.filter.outputs.shipping }}
+      user: ${{ steps.filter.outputs.user }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            cart:
+              - 'cart/**'
+            catalogue:
+              - 'catalogue/**'
+            dispatch:
+              - 'dispatch/**'
+            payment:
+              - 'payment/**'
+            ratings:
+              - 'ratings/**'
+            shipping:
+              - 'shipping/**'
+            user:
+              - 'user/**'
+            web:
+              - 'web/**'
+
+  # Build and push Cart service
+  build-cart:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.cart == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTERY_USERNAME }}
+          password: ${{ secrets.RESISTERY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./cart
+          push: true
+          tags: |
+            ${{ secrets.REGISTERY_USERNAME }}/robot-cart:${{ steps.meta.outputs.sha_short }}
+            ${{ secrets.REGISTERY_USERNAME }}/robot-cart:latest
+          cache-from: type=registry,ref=${{ secrets.REGISTERY_USERNAME }}/robot-cart:latest
+          cache-to: type=inline
+
+      - name: Update Helm values
+        run: |
+          sed -i "s|tag: \".*\"|tag: \"${{ steps.meta.outputs.sha_short }}\"|" k8s/robot-shop/values.yaml
+          grep -A 3 "^cart:" k8s/robot-shop/values.yaml
+
+      - name: Commit updated values
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/robot-shop/values.yaml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update cart image to ${{ steps.meta.outputs.sha_short }}" && git push)
+
+  # Build and push Catalogue service
+  build-catalogue:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.catalogue == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTERY_USERNAME }}
+          password: ${{ secrets.RESISTERY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./catalogue
+          push: true
+          tags: |
+            ${{ secrets.REGISTERY_USERNAME }}/robot-catalogue:${{ steps.meta.outputs.sha_short }}
+            ${{ secrets.REGISTERY_USERNAME }}/robot-catalogue:latest
+          cache-from: type=registry,ref=${{ secrets.REGISTERY_USERNAME }}/robot-catalogue:latest
+          cache-to: type=inline
+
+      - name: Update Helm values
+        run: |
+          sed -i '/^catalogue:/,/^[^ ]/ s|tag: ".*"|tag: "${{ steps.meta.outputs.sha_short }}"|' k8s/robot-shop/values.yaml
+
+      - name: Commit updated values
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/robot-shop/values.yaml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update catalogue image to ${{ steps.meta.outputs.sha_short }}" && git push)
+
+  # Build and push Dispatch service
+  build-dispatch:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.dispatch == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTERY_USERNAME }}
+          password: ${{ secrets.RESISTERY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./dispatch
+          push: true
+          tags: |
+            ${{ secrets.REGISTERY_USERNAME }}/robot-dispatch:${{ steps.meta.outputs.sha_short }}
+            ${{ secrets.REGISTERY_USERNAME }}/robot-dispatch:latest
+
+      - name: Update Helm values
+        run: |
+          sed -i '/^dispatch:/,/^[^ ]/ s|tag: ".*"|tag: "${{ steps.meta.outputs.sha_short }}"|' k8s/robot-shop/values.yaml
+
+      - name: Commit updated values
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/robot-shop/values.yaml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update dispatch image to ${{ steps.meta.outputs.sha_short }}" && git push)
+
+  # Build and push Payment service
+  build-payment:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.payment == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTERY_USERNAME }}
+          password: ${{ secrets.RESISTERY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./payment
+          push: true
+          tags: |
+            ${{ secrets.REGISTERY_USERNAME }}/robot-payment:${{ steps.meta.outputs.sha_short }}
+            ${{ secrets.REGISTERY_USERNAME }}/robot-payment:latest
+
+      - name: Update Helm values
+        run: |
+          sed -i '/^payment:/,/^[^ ]/ s|tag: ".*"|tag: "${{ steps.meta.outputs.sha_short }}"|' k8s/robot-shop/values.yaml
+
+      - name: Commit updated values
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/robot-shop/values.yaml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update payment image to ${{ steps.meta.outputs.sha_short }}" && git push)
+
+  # Build and push Ratings service
+  build-ratings:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ratings == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTERY_USERNAME }}
+          password: ${{ secrets.RESISTERY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./ratings
+          push: true
+          tags: |
+            ${{ secrets.REGISTERY_USERNAME }}/robot-ratings:${{ steps.meta.outputs.sha_short }}
+            ${{ secrets.REGISTERY_USERNAME }}/robot-ratings:latest
+
+      - name: Update Helm values
+        run: |
+          sed -i '/^ratings:/,/^[^ ]/ s|tag: ".*"|tag: "${{ steps.meta.outputs.sha_short }}"|' k8s/robot-shop/values.yaml
+
+      - name: Commit updated values
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/robot-shop/values.yaml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update ratings image to ${{ steps.meta.outputs.sha_short }}" && git push)
+
+  # Build and push Shipping service
+  build-shipping:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.shipping == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTERY_USERNAME }}
+          password: ${{ secrets.RESISTERY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./shipping
+          push: true
+          tags: |
+            ${{ secrets.REGISTERY_USERNAME }}/robot-shipping:${{ steps.meta.outputs.sha_short }}
+            ${{ secrets.REGISTERY_USERNAME }}/robot-shipping:latest
+
+      - name: Update Helm values
+        run: |
+          sed -i '/^shipping:/,/^[^ ]/ s|tag: ".*"|tag: "${{ steps.meta.outputs.sha_short }}"|' k8s/robot-shop/values.yaml
+
+      - name: Commit updated values
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/robot-shop/values.yaml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update shipping image to ${{ steps.meta.outputs.sha_short }}" && git push)
+
+  # Build and push User service
+  build-user:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.user == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTERY_USERNAME }}
+          password: ${{ secrets.RESISTERY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./user
+          push: true
+          tags: |
+            ${{ secrets.REGISTERY_USERNAME }}/robot-user:${{ steps.meta.outputs.sha_short }}
+            ${{ secrets.REGISTERY_USERNAME }}/robot-user:latest
+
+      - name: Update Helm values
+        run: |
+          sed -i '/^user:/,/^[^ ]/ s|tag: ".*"|tag: "${{ steps.meta.outputs.sha_short }}"|' k8s/robot-shop/values.yaml
+
+      - name: Commit updated values
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/robot-shop/values.yaml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update user image to ${{ steps.meta.outputs.sha_short }}" && git push)
+
+  # Build and push Web service
+  build-web:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTERY_USERNAME }}
+          password: ${{ secrets.RESISTERY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./web
+          push: true
+          tags: |
+            ${{ secrets.REGISTERY_USERNAME }}/robot-web:${{ steps.meta.outputs.sha_short }}
+            ${{ secrets.REGISTERY_USERNAME }}/robot-web:latest
+
+      - name: Update Helm values
+        run: |
+          sed -i '/^web:/,/^[^ ]/ s|tag: ".*"|tag: "${{ steps.meta.outputs.sha_short }}"|' k8s/robot-shop/values.yaml
+
+      - name: Commit updated values
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add k8s/robot-shop/values.yaml
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update web image to ${{ steps.meta.outputs.sha_short }}" && git push)

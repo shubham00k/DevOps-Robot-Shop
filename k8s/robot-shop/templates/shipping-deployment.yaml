@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipping
+  labels:
+    app: shipping
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shipping
+  template:
+    metadata:
+      labels:
+        app: shipping
+    spec:
+      containers:
+        - name: shipping
+          image: "{{ .Values.shipping.image.repository }}:{{ .Values.shipping.image.tag }}"
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+
+          ports:
+            - containerPort: {{ .Values.shipping.port }}
+
+          env:
+            - name: CART_ENDPOINT
+              value: "http://cart:8080"
+
+            - name: DB_HOST
+              value: "mysql"
+
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql:3306/cities"
+
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: username
+
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: password
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10

@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  labels:
+    app: loadgen
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgen
+  template:
+    metadata:
+      labels:
+        app: loadgen
+    spec:
+      containers:
+        - name: loadgen
+          image: "{{ .Values.loadgen.image.repository }}:{{ .Values.loadgen.image.tag }}"
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: WEB_HOST
+              value: "web"              # service name of your web app
+            - name: WEB_PORT
+              value: "8080"             # web app port
+
+          # optional – helps you see it’s running
+          resources:
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+            requests:
+              cpu: "50m"
+              memory: "64Mi"

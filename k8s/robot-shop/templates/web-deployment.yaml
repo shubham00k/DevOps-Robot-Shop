@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: shubhamkapse003/robo-web:v1
+          ports:
+            - containerPort: 8080
+          env:
+            - name: CATALOGUE_HOST
+              value: catalogue
+            - name: USER_HOST
+              value: user
+            - name: CART_HOST
+              value: cart
+            - name: SHIPPING_HOST
+              value: shipping
+            - name: PAYMENT_HOST
+              value: payment
+            - name: RATINGS_HOST
+              value: ratings
+          volumeMounts:
+            - name: web-config
+              mountPath: /etc/nginx/conf.d/default.conf.template
+              subPath: default.conf.template
+      volumes:
+        - name: web-config
+          configMap:
+            name: web-config
+
+

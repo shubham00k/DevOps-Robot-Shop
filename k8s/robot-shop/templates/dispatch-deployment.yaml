@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispatch
+  labels:
+    app: dispatch
+spec:
+  replicas: {{ .Values.dispatch.replicas }}
+  selector:
+    matchLabels:
+      app: dispatch
+  template:
+    metadata:
+      labels:
+        app: dispatch
+    spec:
+      containers:
+        - name: dispatch
+          image: "{{ .Values.dispatch.image.repository }}:{{ .Values.dispatch.image.tag }}"
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - containerPort: 8080
+
+          env:
+            # RabbitMQ endpoint
+            - name: AMQP_URL
+              value: "amqp://guest:guest@rabbitmq:5672"
+
+          readinessProbe:
+            httpGet:
+              path: /dispatch/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /dispatch/health
+
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
