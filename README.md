@@ -135,9 +135,7 @@ terraform/
 ├── main.tf              # Main configuration
 ├── variables.tf         # Input variables
 ├── outputs.tf           # Output values
-├── vpc.tf               # VPC configuration
-├── eks.tf               # EKS cluster setup
-├── node-groups.tf       # Worker node configuration
+├── /modules             # VPC/EKS modules             
 └── terraform.tfvars     # Variable values
 ```
 
